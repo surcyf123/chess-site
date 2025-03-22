@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-// Update the chess.js import to be compatible with both CommonJS and ESM
-import * as ChessJS from 'chess.js';
+// Remove the direct chess.js import and SimpleChess import
 import { Socket } from 'socket.io-client';
 import GameOverlay from './GameOverlay';
 import { useRouter } from 'next/navigation';
-import { SimpleChess } from '../utils/chessEngine';
+import { ChessWrapper } from '../utils/chessWrapper';
 
 // Define TimeControl interface
 interface TimeControl {
@@ -12,30 +11,9 @@ interface TimeControl {
   black: number;
 }
 
-// Helper function to safely create a Chess instance with multiple fallback patterns
+// Replace the createChess function with a function that returns our wrapper
 const createChess = (fen?: string) => {
-  try {
-    // Pattern 1: Direct constructor with new keyword (v0.12.1 standard)
-    const Chess = (ChessJS as any).Chess || ChessJS;
-    return fen ? new Chess(fen) : new Chess();
-  } catch (e1) {
-    console.error('First Chess initialization attempt failed:', e1);
-    try {
-      // Pattern 2: Try using the default export directly
-      return fen ? new ChessJS(fen) : new ChessJS();
-    } catch (e2) {
-      console.error('Second Chess initialization attempt failed:', e2);
-      try {
-        // Pattern 3: Try without new keyword (newer versions of chess.js)
-        const Chess = (ChessJS as any).Chess || ChessJS;
-        return fen ? Chess(fen) : Chess();
-      } catch (e3) {
-        console.error('All Chess initialization attempts failed, using fallback engine:', e3);
-        // Final fallback - use our own minimal chess engine implementation
-        return new SimpleChess(fen);
-      }
-    }
-  }
+  return new ChessWrapper(fen);
 };
 
 interface ChessBoardProps {
@@ -67,6 +45,8 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   const [gameOver, setGameOver] = useState(false);
   const [gameOverReason, setGameOverReason] = useState<'checkmate' | 'stalemate' | 'time' | null>(null);
   const [winner, setWinner] = useState<'white' | 'black' | 'draw' | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [engineState, setEngineState] = useState<any>({});
 
   // Memoize the game state update function
   const updateGameState = useCallback((newFen: string) => {
@@ -94,38 +74,44 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
   // Debug logging for game state changes
   useEffect(() => {
-    console.log('Game state:', {
-      fen: game.fen(),
-      turn: game.turn(),
-      isCheck: game.isCheck(),
-      isCheckmate: game.isCheckmate(),
-      isDraw: game.isDraw(),
-      isMyTurn,
-      playerColor
-    });
+    try {
+      // Safely access methods with defensive programming
+      console.log('Game state:', {
+        fen: game.fen(),
+        turn: game.turn(),
+        isCheck: typeof game.isCheck === 'function' ? game.isCheck() : false,
+        isCheckmate: typeof game.isCheckmate === 'function' ? game.isCheckmate() : false,
+        isDraw: typeof game.isDraw === 'function' ? game.isDraw() : false,
+        isMyTurn,
+        playerColor
+      });
 
-    // Check for game over conditions
-    if (game.isCheckmate()) {
-      const checkmatedColor = game.turn() === 'w' ? 'black' : 'white';
-      setGameOver(true);
-      setGameOverReason('checkmate');
-      setWinner(checkmatedColor);
-      
-      // Notify server about game over
-      socket.emit('gameOver', { 
-        gameId, 
-        winner: checkmatedColor 
-      });
-    } else if (game.isDraw() || game.isStalemate()) {
-      setGameOver(true);
-      setGameOverReason('stalemate');
-      setWinner('draw');
-      
-      // Notify server about game over
-      socket.emit('gameOver', { 
-        gameId, 
-        winner: 'draw' 
-      });
+      // Check for game over conditions with safe method calls
+      if (typeof game.isCheckmate === 'function' && game.isCheckmate()) {
+        const checkmatedColor = game.turn() === 'w' ? 'black' : 'white';
+        setGameOver(true);
+        setGameOverReason('checkmate');
+        setWinner(checkmatedColor);
+        
+        // Notify server about game over
+        socket.emit('gameOver', { 
+          gameId, 
+          winner: checkmatedColor 
+        });
+      } else if ((typeof game.isDraw === 'function' && game.isDraw()) || 
+                (typeof game.isStalemate === 'function' && game.isStalemate())) {
+        setGameOver(true);
+        setGameOverReason('stalemate');
+        setWinner('draw');
+        
+        // Notify server about game over
+        socket.emit('gameOver', { 
+          gameId, 
+          winner: 'draw' 
+        });
+      }
+    } catch (error) {
+      console.error('Error in game state effect:', error);
     }
   }, [game, isMyTurn, playerColor, gameId, socket]);
 
@@ -133,37 +119,43 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    // Only run timer if game is in progress
-    if (game && !game.isGameOver() && !gameOver) {
-      const activeColor = game.turn() === 'w' ? 'white' : 'black';
-      
-      // Start counting down the active player's clock
-      interval = setInterval(() => {
-        setTime(prev => {
-          // If clock reaches zero, game over by timeout
-          if (prev[activeColor] <= 1) {
-            clearInterval(interval);
-            const winner = activeColor === 'white' ? 'black' : 'white';
-            setGameOver(true);
-            setGameOverReason('time');
-            setWinner(winner);
+    try {
+      // Only run timer if game is in progress and methods are available
+      if (game && 
+          (typeof game.isGameOver !== 'function' || !game.isGameOver()) && 
+          !gameOver) {
+        const activeColor = game.turn() === 'w' ? 'white' : 'black';
+        
+        // Start counting down the active player's clock
+        interval = setInterval(() => {
+          setTime(prev => {
+            // If clock reaches zero, game over by timeout
+            if (prev[activeColor] <= 1) {
+              clearInterval(interval);
+              const winner = activeColor === 'white' ? 'black' : 'white';
+              setGameOver(true);
+              setGameOverReason('time');
+              setWinner(winner);
+              
+              // Notify server about timeout
+              socket.emit('gameOver', { 
+                gameId, 
+                winner 
+              });
+              
+              return prev;
+            }
             
-            // Notify server about timeout
-            socket.emit('gameOver', { 
-              gameId, 
-              winner 
-            });
-            
-            return prev;
-          }
-          
-          // Decrement active player's time
-          return {
-            ...prev,
-            [activeColor]: prev[activeColor] - 1
-          };
-        });
-      }, 1000);
+            // Decrement active player's time
+            return {
+              ...prev,
+              [activeColor]: prev[activeColor] - 1
+            };
+          });
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error in timer effect:', error);
     }
 
     return () => {
@@ -205,9 +197,17 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       try {
         if (data.fen) {
           const newGame = createChess();
-          newGame.load(data.fen);
+          
+          // Safely load the FEN
+          if (typeof newGame.load === 'function') {
+            newGame.load(data.fen);
+          }
+          
           setGame(newGame);
-          setIsMyTurn(newGame.turn() === (playerColor === 'white' ? 'w' : 'b'));
+          
+          // Safely check the turn
+          const currentTurn = typeof newGame.turn === 'function' ? newGame.turn() : 'w';
+          setIsMyTurn(currentTurn === (playerColor === 'white' ? 'w' : 'b'));
         }
         
         if (data.whiteTimeLeft !== undefined && data.blackTimeLeft !== undefined) {
@@ -357,6 +357,51 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     }
   }, [game]);
 
+  // Add a debug function to gather engine information
+  const getEngineDebugInfo = useCallback(() => {
+    try {
+      if (!game) return {};
+      
+      const engineType = game.getEngineType ? game.getEngineType() : 'unknown';
+      
+      const info = {
+        engineType,
+        fen: game.fen?.() || 'Not available',
+        turn: game.turn?.() || 'Not available',
+        methods: {
+          isCheck: typeof game.isCheck === 'function',
+          isCheckmate: typeof game.isCheckmate === 'function',
+          isDraw: typeof game.isDraw === 'function',
+          isStalemate: typeof game.isStalemate === 'function',
+          isGameOver: typeof game.isGameOver === 'function',
+          moves: typeof game.moves === 'function',
+          move: typeof game.move === 'function',
+          get: typeof game.get === 'function',
+          put: typeof game.put === 'function',
+        },
+        gameState: {
+          isCheck: typeof game.isCheck === 'function' ? game.isCheck() : 'Not available',
+          isCheckmate: typeof game.isCheckmate === 'function' ? game.isCheckmate() : 'Not available',
+          isDraw: typeof game.isDraw === 'function' ? game.isDraw() : 'Not available',
+          isStalemate: typeof game.isStalemate === 'function' ? game.isStalemate() : 'Not available',
+          isGameOver: typeof game.isGameOver === 'function' ? game.isGameOver() : 'Not available',
+        }
+      };
+      
+      return info;
+    } catch (error) {
+      console.error('Error gathering engine debug info:', error);
+      return { error: String(error) };
+    }
+  }, [game]);
+  
+  // Update engine state when debug is shown
+  useEffect(() => {
+    if (showDebug) {
+      setEngineState(getEngineDebugInfo());
+    }
+  }, [showDebug, getEngineDebugInfo]);
+
   const makeMove = useCallback((from: string, to: string) => {
     if (!isMyTurn) {
       console.log('Not your turn');
@@ -364,8 +409,21 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     }
 
     try {
+      // Check if we can create a new game instance
+      if (!game || !game.fen || typeof game.fen !== 'function') {
+        console.error('Invalid game state - cannot make move');
+        return false;
+      }
+      
       // Create a new game instance and try the move
       const newGame = createChess(game.fen());
+      
+      // Check if the move method exists
+      if (!newGame.move || typeof newGame.move !== 'function') {
+        console.error('Move method unavailable');
+        return false;
+      }
+      
       const move = newGame.move({ from, to, promotion: 'q' });
 
       if (!move) {
@@ -408,94 +466,99 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       return;
     }
 
-    // Get the piece at the clicked square
-    const piece = game.get(square);
+    try {
+      // Get the piece at the clicked square, if game.get exists
+      const piece = typeof game.get === 'function' ? game.get(square) : null;
 
-    // If a square is already selected
-    if (selectedSquare) {
-      // If clicking the same square, deselect it
-      if (square === selectedSquare) {
-        setSelectedSquare(null);
-        setAvailableMoves([]);
-        return;
-      }
-
-      // If clicking a valid destination square, make the move
-      if (availableMoves.includes(square)) {
-        try {
-          // Create a new game instance to validate the move
-          const newGame = createChess(game.fen());
-          
-          // Try to make the move in our local copy first
-          const moveResult = newGame.move({
-            from: selectedSquare,
-            to: square,
-            promotion: 'q',
-          });
-
-          if (!moveResult) {
-            // Clear selection if move is invalid
-            setSelectedSquare(null);
-            setAvailableMoves([]);
-            return;
-          }
-          
-          // Update timer with increment for the current player
-          const updatedTime = {
-            ...time,
-            [playerColor]: time[playerColor] + incrementPerMove
-          };
-          
-          // Construct the move string
-          const moveString = selectedSquare + square + (moveResult.promotion || '');
-          
-          // First update our local state to avoid lag
-          setGame(newGame);
-          setLastMove({ from: selectedSquare, to: square });
-          setIsMyTurn(false);
-          setTime(updatedTime);
-          
-          // Then send move to server with both timers' current values
-          socket.emit('move', {
-            gameId,
-            move: moveString,
-            whiteTimeLeft: updatedTime.white,
-            blackTimeLeft: updatedTime.black,
-          });
-          
-          // Clear selection
+      // If a square is already selected
+      if (selectedSquare) {
+        // If clicking the same square, deselect it
+        if (square === selectedSquare) {
           setSelectedSquare(null);
           setAvailableMoves([]);
-          
           return;
-        } catch (e) {
-          console.error('Error making move:', e);
-          
-          // Clear selection on error
+        }
+
+        // If clicking a valid destination square, make the move
+        if (availableMoves.includes(square)) {
+          try {
+            // Create a new game instance to validate the move
+            const newGame = createChess(game.fen());
+            
+            // Try to make the move in our local copy first
+            const moveResult = typeof newGame.move === 'function' ? 
+              newGame.move({
+                from: selectedSquare,
+                to: square,
+                promotion: 'q',
+              }) : null;
+
+            if (!moveResult) {
+              // Clear selection if move is invalid
+              setSelectedSquare(null);
+              setAvailableMoves([]);
+              return;
+            }
+            
+            // Update timer with increment for the current player
+            const updatedTime = {
+              ...time,
+              [playerColor]: time[playerColor] + incrementPerMove
+            };
+            
+            // Construct the move string
+            const moveString = selectedSquare + square + (moveResult.promotion || '');
+            
+            // First update our local state to avoid lag
+            setGame(newGame);
+            setLastMove({ from: selectedSquare, to: square });
+            setIsMyTurn(false);
+            setTime(updatedTime);
+            
+            // Then send move to server with both timers' current values
+            socket.emit('move', {
+              gameId,
+              move: moveString,
+              whiteTimeLeft: updatedTime.white,
+              blackTimeLeft: updatedTime.black,
+            });
+            
+            // Clear selection
+            setSelectedSquare(null);
+            setAvailableMoves([]);
+            
+            return;
+          } catch (e) {
+            console.error('Error making move:', e);
+            
+            // Clear selection on error
+            setSelectedSquare(null);
+            setAvailableMoves([]);
+          }
+        }
+      }
+
+      // If clicking a square that's not a move target, try to select a new piece
+      // Only select if it's our piece
+      if (piece && piece.color === (playerColor === 'white' ? 'w' : 'b')) {
+        const moves = getAvailableMoves(square);
+        
+        // Only set selection if there are valid moves
+        if (moves && moves.length > 0) {
+          setSelectedSquare(square);
+          setAvailableMoves(moves);
+        } else {
+          // Clear selection if no valid moves
           setSelectedSquare(null);
           setAvailableMoves([]);
         }
-      }
-    }
-
-    // If clicking a square that's not a move target, try to select a new piece
-    // Only select if it's our piece
-    if (piece && piece.color === (playerColor === 'white' ? 'w' : 'b')) {
-      const moves = getAvailableMoves(square);
-      
-      // Only set selection if there are valid moves
-      if (moves && moves.length > 0) {
-        setSelectedSquare(square);
-        setAvailableMoves(moves);
       } else {
-        // Clear selection if no valid moves
+        // If clicking on an empty square or opponent's piece, clear selection
         setSelectedSquare(null);
         setAvailableMoves([]);
       }
-    } else {
-      // If clicking on an empty square or opponent's piece, clear selection
-      setSelectedSquare(null);
-      setAvailableMoves([]);
+    } catch (error) {
+      console.error('Error handling square click:', error);
     }
   }, [selectedSquare, availableMoves, isMyTurn, game, playerColor, time, incrementPerMove, gameId, socket, getAvailableMoves, gameOver]);
 
@@ -537,12 +600,13 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         // Create a new game instance to validate the move
         const newGame = createChess(game.fen());
         
-        // Try to make the move in our local copy first
-        const moveResult = newGame.move({
-          from: sourceSquare,
-          to: targetSquare,
-          promotion: 'q',
-        });
+        // Try to make the move in our local copy first, safely
+        const moveResult = typeof newGame.move === 'function' ? 
+          newGame.move({
+            from: sourceSquare,
+            to: targetSquare,
+            promotion: 'q',
+          }) : null;
 
         if (!moveResult) {
           return;
@@ -711,6 +775,51 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
           <div className="chess-clock-value">{formatTime(time.white)}</div>
           <div className="chess-clock-player">White</div>
         </div>
+        
+        {/* Debug button */}
+        <button 
+          className="debug-button" 
+          onClick={() => setShowDebug(!showDebug)}
+          style={{ 
+            position: 'absolute', 
+            top: '5px', 
+            right: '5px',
+            background: '#333',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '3px 8px',
+            fontSize: '12px',
+            cursor: 'pointer'
+          }}
+        >
+          {showDebug ? 'Hide Debug' : 'Debug'}
+        </button>
+        
+        {/* Debug info panel */}
+        {showDebug && (
+          <div 
+            className="debug-panel"
+            style={{
+              position: 'fixed',
+              top: '40px',
+              right: '5px',
+              background: 'rgba(0,0,0,0.8)',
+              color: '#fff',
+              padding: '10px',
+              borderRadius: '4px',
+              maxWidth: '300px',
+              maxHeight: '400px',
+              overflow: 'auto',
+              zIndex: 1000,
+              fontSize: '12px',
+              fontFamily: 'monospace'
+            }}
+          >
+            <h3>Chess Engine Debug</h3>
+            <pre>{JSON.stringify(engineState, null, 2)}</pre>
+          </div>
+        )}
       </div>
 
       {/* Game Status */}

@@ -14,14 +14,6 @@ else
   echo "✅ DATABASE_URL is set"
 fi
 
-# Set DATABASE_PROVIDER if not set
-if [ -z "$DATABASE_PROVIDER" ]; then
-  echo "DATABASE_PROVIDER not set, defaulting to postgresql"
-  export DATABASE_PROVIDER="postgresql"
-else
-  echo "✅ DATABASE_PROVIDER is set to $DATABASE_PROVIDER"
-fi
-
 # Make sure node_modules exists
 if [ ! -d "node_modules" ]; then
   echo "Installing dependencies..."

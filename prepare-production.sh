@@ -4,16 +4,16 @@
 
 echo "Preparing application for production deployment..."
 
-# Set DATABASE_PROVIDER based on DATABASE_URL
+# Detect database type from URL
 if [[ "$DATABASE_URL" == *"postgres"* ]]; then
-  echo "PostgreSQL database detected, setting DATABASE_PROVIDER=postgresql"
-  export DATABASE_PROVIDER="postgresql"
+  echo "PostgreSQL database detected"
+  DB_TYPE="postgresql"
 elif [[ "$DATABASE_URL" == *"sqlite"* || "$DATABASE_URL" == "file:"* ]]; then
-  echo "SQLite database detected, setting DATABASE_PROVIDER=sqlite"
-  export DATABASE_PROVIDER="sqlite"
+  echo "SQLite database detected"
+  DB_TYPE="sqlite"
 else
-  echo "Unknown database type, defaulting to DATABASE_PROVIDER=postgresql"
-  export DATABASE_PROVIDER="postgresql"
+  echo "Unknown database type, assuming PostgreSQL"
+  DB_TYPE="postgresql"
 fi
 
 # Install dependencies
@@ -28,12 +28,12 @@ npx prisma generate
 echo "Building the application..."
 npm run build
 
-# Prepare database based on provider
-if [[ "$DATABASE_URL" == *"postgres"* ]]; then
+# Prepare database based on detected type
+if [[ "$DB_TYPE" == "postgresql" ]]; then
   echo "PostgreSQL database detected, preparing migrations..."
   # Try to run migrations first
   npx prisma migrate deploy || npx prisma db push --accept-data-loss
-elif [[ "$DATABASE_URL" == *"sqlite"* || "$DATABASE_URL" == "file:"* ]]; then
+elif [[ "$DB_TYPE" == "sqlite" ]]; then
   echo "SQLite database detected, using db push..."
   npx prisma db push
 else

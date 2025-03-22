@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = env("DATABASE_PROVIDER") // PostgreSQL in production, SQLite in development
+  provider = "sqlite" // Use sqlite for development, change to postgresql for production
   url      = env("DATABASE_URL")
   // shadowDatabaseUrl = env("SHADOW_DATABASE_URL") // Only needed for cloud deployments with migrations
 }

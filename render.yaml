@@ -11,8 +11,6 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
-      - key: DATABASE_PROVIDER
-        value: postgresql
       - key: NEXT_PUBLIC_SOCKET_URL
         fromService:
           type: web

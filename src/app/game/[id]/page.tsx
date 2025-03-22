@@ -76,14 +76,20 @@ export default function Game({ params }: { params: { id: string } }) {
         // Join the game with the determined color
         newSocket.on('connect', () => {
           console.log('Socket connected');
-          newSocket.emit('joinGame', params.id, color);
+          newSocket.emit('joinGame', { gameId: params.id });
         });
         
         // Register for connect event if socket is already connected
         if (newSocket.connected) {
           console.log('Socket already connected');
-          newSocket.emit('joinGame', params.id, color);
+          newSocket.emit('joinGame', { gameId: params.id });
         }
+        
+        // Listen for game state updates
+        newSocket.on('gameState', (data) => {
+          console.log('Game state received:', data);
+          // If we receive a state update, we could update local state if needed
+        });
         
         // Join the game on the server
         fetch(`/api/games/${params.id}/join`, {

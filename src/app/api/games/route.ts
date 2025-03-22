@@ -14,7 +14,11 @@ export async function POST(request: Request) {
         blackPlayer: '',  // Will be set when player joins
         timeControl,
         incrementPerMove,
+        whiteTimeLeft: timeControl,  // Initialize timer to match timeControl
+        blackTimeLeft: timeControl,  // Initialize timer to match timeControl
         status: 'waiting',
+        movesJson: JSON.stringify([]),  // Initialize empty moves array as JSON string
+        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',  // Initial position
       },
     });
 

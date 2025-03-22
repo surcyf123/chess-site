@@ -104,6 +104,68 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     };
   }, [isMyTurn, playerColor, time, game]);
 
+  // Handle socket connection issues and reconnection
+  useEffect(() => {
+    // Listen for connection events
+    socket.on('connect', () => {
+      console.log('Socket connected successfully');
+      
+      // Rejoin the game room on reconnection
+      socket.emit('joinGame', { gameId });
+    });
+    
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log(`Socket reconnected after ${attemptNumber} attempts`);
+      
+      // Rejoin the game room on reconnection
+      socket.emit('joinGame', { gameId });
+      
+      // Request current game state after reconnection
+      socket.emit('requestGameState', { gameId });
+    });
+    
+    // Handle game state synchronization
+    socket.on('gameState', (data) => {
+      console.log('Game state received:', data);
+      try {
+        if (data.fen) {
+          const newGame = createChess();
+          newGame.load(data.fen);
+          setGame(newGame);
+          setIsMyTurn(newGame.turn() === (playerColor === 'white' ? 'w' : 'b'));
+        }
+        
+        if (data.whiteTimeLeft !== undefined && data.blackTimeLeft !== undefined) {
+          setTime({
+            white: data.whiteTimeLeft,
+            black: data.blackTimeLeft
+          });
+        }
+      } catch (error) {
+        console.error('Error processing game state:', error);
+      }
+    });
+    
+    // Initially join the game
+    socket.emit('joinGame', { gameId });
+    
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
+      socket.off('reconnect');
+      socket.off('gameState');
+    };
+  }, [socket, gameId, playerColor]);
+
   useEffect(() => {
     const handleMoveMade = (data: any) => {
       console.log('Move received:', data);

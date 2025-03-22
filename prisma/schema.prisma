@@ -6,32 +6,39 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
+  // shadowDatabaseUrl = env("SHADOW_DATABASE_URL") // Only needed for cloud deployments with migrations
 }
 
 model Game {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  whitePlayer String
-  blackPlayer String
-  timeControl Int    // Time in seconds
-  incrementPerMove Int // Time added after each move in seconds
-  status     String  // "ongoing", "completed", "abandoned"
-  winner     String? // "white", "black", or null for draw/ongoing
-  moves      Move[]
+  id               String    @id @default(uuid())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  lastMoveAt       DateTime?
+  whitePlayer      String
+  blackPlayer      String
+  timeControl      Int       // Time in seconds
+  incrementPerMove Int       // Time added after each move in seconds
+  status           String    // "waiting", "ongoing", "completed", "abandoned"
+  winner           String?   // "white", "black", or null for draw/ongoing
+  movesJson        String?   // Store moves as a JSON string
+  fen              String?   // Current board position in FEN notation
+  whiteTimeLeft    Int?      // Time left for white player in seconds
+  blackTimeLeft    Int?      // Time left for black player in seconds
+  // Historical moves relationship
+  moveHistory      Move[]
 }
 
 model Move {
-  id        String   @id @default(uuid())
-  gameId    String
-  game      Game     @relation(fields: [gameId], references: [id])
-  moveNumber Int
-  move      String   // The move in algebraic notation
-  timestamp DateTime @default(now())
-  whiteTimeLeft Int  // Time left for white player in seconds
-  blackTimeLeft Int  // Time left for black player in seconds
+  id             String   @id @default(uuid())
+  gameId         String
+  game           Game     @relation(fields: [gameId], references: [id])
+  moveNumber     Int
+  move           String   // The move in algebraic notation
+  timestamp      DateTime @default(now())
+  whiteTimeLeft  Int      // Time left for white player in seconds
+  blackTimeLeft  Int      // Time left for black player in seconds
 
   @@index([gameId])
 }

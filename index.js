@@ -59,8 +59,24 @@ try {
   console.log('Will try to continue without migrations...');
 }
 
-// Initialize Prisma client
-const prisma = new PrismaClient();
+// Initialize Prisma client with better error handling
+let prisma;
+try {
+  prisma = new PrismaClient();
+  // Test the connection
+  prisma.$connect().then(() => {
+    console.log('Successfully connected to the database');
+    
+    // Initialize the database after connecting successfully
+    initializeDatabase().catch(err => {
+      console.error('Error initializing database:', err);
+    });
+  }).catch(err => {
+    console.error('Failed to connect to the database:', err);
+  });
+} catch (error) {
+  console.error('Error initializing Prisma client:', error);
+}
 
 // Create a sample game if none exists
 async function initializeDatabase() {
@@ -71,14 +87,21 @@ async function initializeDatabase() {
     if (gamesCount === 0) {
       console.log('No games found, creating a sample game...');
       
+      const timeControl = 300; // 5 minutes
+      const incrementPerMove = 3; // 3 seconds
+      
       // Create a default game
       await prisma.game.create({
         data: {
           whitePlayer: '',
           blackPlayer: '',
-          timeControl: 300, // 5 minutes
-          incrementPerMove: 3, // 3 seconds per move
-          status: 'waiting'
+          timeControl,
+          incrementPerMove,
+          whiteTimeLeft: timeControl,
+          blackTimeLeft: timeControl,
+          status: 'waiting',
+          movesJson: JSON.stringify([]),
+          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
         }
       });
       
@@ -88,6 +111,7 @@ async function initializeDatabase() {
     }
   } catch (error) {
     console.error('Error initializing database:', error);
+    throw error;
   }
 }
 
@@ -125,63 +149,137 @@ app.prepare().then(() => {
   });
 
   io.on('connection', (socket) => {
-    console.log('Client connected with ID:', socket.id);
+    console.log('A user connected');
+    
+    // Handle joining a game room
+    socket.on('joinGame', async (data) => {
+      try {
+        const { gameId } = data;
+        console.log(`User ${socket.id} joining game ${gameId}`);
+        
+        // Join the socket to the game's room
+        socket.join(`game:${gameId}`);
+        
+        // Get the current game state from database
+        const game = await prisma.game.findUnique({
+          where: { id: gameId },
+        });
+        
+        if (game) {
+          // Emit current game state to the connecting client
+          socket.emit('gameState', {
+            fen: game.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', // Default FEN if not set
+            whiteTimeLeft: game.whiteTimeLeft,
+            blackTimeLeft: game.blackTimeLeft,
+            status: game.status
+          });
+        } else {
+          console.error(`Game ${gameId} not found for joining user`);
+        }
+      } catch (error) {
+        console.error('Error handling joinGame:', error);
+        socket.emit('error', { message: 'Failed to join game' });
+      }
+    });
 
-    socket.on('joinGame', async (gameId, player) => {
-      socket.join(gameId);
-      console.log(`${player} joined game ${gameId}`);
+    // Handle requests for current game state
+    socket.on('requestGameState', async (data) => {
+      try {
+        const { gameId } = data;
+        console.log(`User ${socket.id} requesting game state for ${gameId}`);
+        
+        // Get the current game state from database
+        const game = await prisma.game.findUnique({
+          where: { id: gameId },
+        });
+        
+        if (game) {
+          // Emit current game state to the requesting client
+          socket.emit('gameState', {
+            fen: game.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', // Default FEN if not set
+            whiteTimeLeft: game.whiteTimeLeft,
+            blackTimeLeft: game.blackTimeLeft,
+            status: game.status
+          });
+        } else {
+          console.error(`Game ${gameId} not found for state request`);
+          socket.emit('error', { message: 'Game not found' });
+        }
+      } catch (error) {
+        console.error('Error handling requestGameState:', error);
+        socket.emit('error', { message: 'Failed to get game state' });
+      }
     });
 
     socket.on('move', async (data) => {
-      const { gameId, move, whiteTimeLeft, blackTimeLeft } = data;
-      
       try {
-        console.log('Received move from client:', data);
+        console.log('Move received:', data);
+        const { gameId, move, whiteTimeLeft, blackTimeLeft } = data;
         
-        const game = await prisma.game.findUnique({
-          where: { id: gameId },
-          include: { moves: true }
-        });
-
-        if (game) {
-          // Create the move record in the database
-          const newMove = await prisma.move.create({
-            data: {
-              gameId,
-              move,
-              moveNumber: game.moves.length + 1,
-              whiteTimeLeft,
-              blackTimeLeft
-            }
-          });
-
-          console.log('Saved move to database:', newMove);
-
-          // Broadcast move to all clients in the room
-          const moveData = {
-            id: newMove.id,
-            gameId,
-            move,
-            moveNumber: newMove.moveNumber,
-            timestamp: new Date().toISOString(),
-            whiteTimeLeft,
-            blackTimeLeft
-          };
-          
-          console.log('Broadcasting move to room:', gameId);
-          io.to(gameId).emit('moveMade', moveData);
-        } else {
-          console.error('Game not found:', gameId);
+        // Validate the game ID and move data
+        if (!gameId || !move) {
+          console.error('Invalid move data:', data);
+          return;
         }
+        
+        // Get the existing game
+        const game = await prisma.game.findUnique({
+          where: { id: gameId }
+        });
+        
+        if (!game) {
+          console.error(`Game ${gameId} not found`);
+          return;
+        }
+        
+        // Parse existing moves or create new array
+        let moves = [];
+        if (game.movesJson) {
+          try {
+            moves = JSON.parse(game.movesJson);
+          } catch (e) {
+            console.error('Error parsing existing moves JSON:', e);
+          }
+        }
+        
+        // Add new move to array
+        moves.push(move);
+        
+        // Update the game state in the database
+        const updatedGame = await prisma.game.update({
+          where: { id: gameId },
+          data: {
+            movesJson: JSON.stringify(moves),
+            whiteTimeLeft,
+            blackTimeLeft,
+            lastMoveAt: new Date()
+          }
+        });
+        
+        // Broadcast the move to all clients in the game room
+        io.to(`game:${gameId}`).emit('moveMade', {
+          move,
+          whiteTimeLeft,
+          blackTimeLeft
+        });
+        
+        console.log(`Move ${move} broadcast to game:${gameId}`);
       } catch (error) {
-        console.error('Error processing move:', error);
+        console.error('Error handling move:', error);
+        socket.emit('error', { message: 'Failed to process move' });
       }
     });
 
     socket.on('gameOver', async (data) => {
-      const { gameId, winner } = data;
-      
       try {
+        const { gameId, winner } = data;
+        
+        if (!gameId) {
+          console.error('Invalid gameOver data:', data);
+          return;
+        }
+        
+        // Update game status in database
         await prisma.game.update({
           where: { id: gameId },
           data: {
@@ -189,10 +287,13 @@ app.prepare().then(() => {
             winner
           }
         });
-
-        io.to(gameId).emit('gameEnded', { winner });
+        
+        // Notify all clients in the game room
+        io.to(`game:${gameId}`).emit('gameEnded', { winner });
+        console.log(`Game ${gameId} ended. Winner: ${winner}`);
       } catch (error) {
-        console.error('Error ending game:', error);
+        console.error('Error handling gameOver:', error);
+        socket.emit('error', { message: 'Failed to end game' });
       }
     });
 
@@ -200,9 +301,6 @@ app.prepare().then(() => {
       console.log('Client disconnected');
     });
   });
-
-  // Initialize the database after server setup
-  initializeDatabase();
 
   // Start server on the specified port
   server.listen(port, () => {

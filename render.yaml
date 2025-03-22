@@ -2,8 +2,10 @@ services:
   - type: web
     name: chess-site
     env: node
-    buildCommand: npm install && npm run build && npx prisma generate
+    plan: free
+    buildCommand: ./prepare-production.sh
     startCommand: npm run start:unified
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production

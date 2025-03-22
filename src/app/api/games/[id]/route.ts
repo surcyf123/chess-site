@@ -13,7 +13,7 @@ export async function GET(
         id: params.id,
       },
       include: {
-        moves: true,
+        moveHistory: true,
       },
     });
 

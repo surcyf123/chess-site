@@ -9,6 +9,7 @@ if [ ! -f .env ]; then
   echo "Creating .env file..."
   cat > .env << EOF
 DATABASE_URL="file:./prisma/dev.db"
+DATABASE_PROVIDER="sqlite"
 NEXT_PUBLIC_SOCKET_URL="http://localhost:3000"
 NODE_ENV="development"
 PORT="3000"

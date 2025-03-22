@@ -1,0 +1,21 @@
+
+> chess-site@0.1.0 start:unified
+> node index.js
+
+Loaded environment variables from .env file
+Database type detected: SQLite
+Running database setup...
+Development database exists, continuing
+Starting server in development mode on port 3000
+Allowed origins: "*"
+FRONTEND_URL: not set
+Socket.IO path: /socket.io/
+Successfully connected to the database
+Checking if database needs initialization...
+Found 57 existing games, skipping initialization.
+Port 3000 is already in use, trying port 3001
+Port 3000 is already in use, trying port 3001
+Port 3001 is already in use, trying port 3002
+> Server ready on http://0.0.0.0:3000
+> Server ready on http://0.0.0.0:3001
+> Server ready on http://0.0.0.0:3002

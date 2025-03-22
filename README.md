@@ -10,13 +10,14 @@ A real-time chess application with blitz clock functionality, built with Next.js
 - Game history saved to database
 - Beautiful, responsive UI
 - Easy game sharing via link
+- Reconnection handling and game state synchronization
 
 ## Prerequisites
 
 - Node.js (v18 or higher)
 - npm (v8 or higher)
 
-## Setup
+## Local Development Setup
 
 1. Clone the repository:
 ```bash
@@ -29,83 +30,140 @@ cd chess-site
 npm install
 ```
 
-3. Set up the database:
+3. Create a `.env` file with these variables:
+```
+DATABASE_URL="file:./prisma/dev.db"
+NEXT_PUBLIC_SOCKET_URL="http://localhost:3000"
+NODE_ENV="development"
+PORT="3000"
+```
+
+4. Set up the database:
 ```bash
 npx prisma generate
 npx prisma db push
 ```
 
-4. Start the development server:
+5. Start the development server:
 ```bash
 npm run dev:full
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Deployment
+## Deployment Options
 
-The application is split into two parts for deployment:
-1. The Next.js front-end application
-2. The Socket.IO server for real-time communication
+The application can be deployed using multiple platforms. Here are detailed instructions for each option.
 
-### Front-end Deployment (Vercel)
+### Unified Deployment (Recommended)
 
-1. Push your repository to GitHub
-2. Connect your GitHub repository to Vercel
-3. Set the following environment variables in Vercel:
-   - `NEXT_PUBLIC_SOCKET_URL`: URL of your Socket.IO server (e.g., https://chess-site-socket-server.onrender.com)
-   - `DATABASE_URL`: PostgreSQL connection string
+For simpler deployment, we've created a unified server that serves both the Next.js frontend and Socket.IO backend from a single process.
 
-### Socket.IO Server Deployment (Render)
+#### Render.com
 
-1. Push your repository to GitHub
+1. Fork this repository to your GitHub account
 2. Create a new Web Service in Render
 3. Connect your GitHub repository
 4. Use the following settings:
-   - Build Command: `npm install && npx prisma generate`
-   - Start Command: `npm run server`
-5. Set the following environment variables:
+   - Build Command: `./prepare-production.sh`
+   - Start Command: `npm run start:unified`
+   - Environment Variables:
+     - `NODE_ENV`: production
+     - `DATABASE_URL`: Your database connection string (Postgres or SQLite)
+
+The `render.yaml` file is already configured for deployment.
+
+#### Railway.app
+
+1. Fork this repository to your GitHub account
+2. Create a new project in Railway
+3. Connect your GitHub repository
+4. Add a PostgreSQL database service
+5. Configure the environment variables:
    - `NODE_ENV`: production
-   - `PORT`: 10000 (or any port assigned by Render)
-   - `FRONTEND_URL`: URL of your front-end (e.g., https://chess-site.vercel.app)
-   - `DATABASE_URL`: PostgreSQL connection string
+   - `DATABASE_URL`: ${{Postgres.DATABASE_URL}} (use the Railway variable)
 
-### Alternative Deployment (Heroku)
+The `railway.json` file is already configured for deployment.
 
-1. Push your repository to GitHub
-2. Connect your GitHub repository to Heroku
-3. Set the following environment variables:
+#### Fly.io
+
+1. Fork this repository to your GitHub account
+2. Set up the Fly.io CLI on your machine
+3. Run `fly launch` to create a new app
+4. Set up a PostgreSQL database using `fly postgres create`
+5. Attach the database to your app: `fly postgres attach --app your-app-name your-db-name`
+6. Deploy with `fly deploy`
+
+The `fly.toml` and `Dockerfile` are already configured for deployment.
+
+Or use our GitHub Action by configuring secrets:
+- `FLY_API_TOKEN`: Your Fly.io API token
+- `DATABASE_URL`: Your Fly.io PostgreSQL connection string
+
+### Split Deployment (Advanced)
+
+For advanced users who want to separate the frontend and backend:
+
+#### Frontend (Next.js) - Vercel
+
+1. Fork this repository to your GitHub account
+2. Connect your GitHub repository to Vercel
+3. Configure the environment variables:
+   - `NEXT_PUBLIC_SOCKET_URL`: URL of your Socket.IO server
+   - `DATABASE_URL`: Your database connection string
+
+#### Backend (Socket.IO) - Any hosting platform
+
+1. Deploy the Socket.IO server to any platform that supports Node.js
+2. Configure the environment variables:
    - `NODE_ENV`: production
-   - `PORT`: Heroku will set this automatically
-   - `FRONTEND_URL`: URL of your front-end
-   - `DATABASE_URL`: PostgreSQL connection string (add a Postgres add-on in Heroku)
+   - `PORT`: The port your server will run on
+   - `DATABASE_URL`: Your database connection string
+   - `FRONTEND_URL`: URL of your frontend (for CORS)
 
-## How to Play
+## Configuration Files
 
-1. Visit the homepage and click "Create New Game"
-2. Set your desired time control and increment
-3. Share the game link with your opponent
-4. The first player to join will be randomly assigned white or black
-5. Make moves by clicking the pieces and their destination squares
-6. The clock will count down during your turn
-7. Time is added after each move according to the increment setting
+- `.env.local` - Local development environment variables
+- `.env.production` - Production environment variables
+- `fly.toml` - Fly.io configuration
+- `railway.json` - Railway.app configuration
+- `render.yaml` - Render.com configuration
+- `Dockerfile` - Docker configuration for containerized deployments
+- `prepare-production.sh` - Script to prepare the application for production
 
-## Technical Stack
-
-- Next.js 14
-- TypeScript
-- Tailwind CSS
-- Socket.IO for real-time communication
-- Prisma with PostgreSQL database (SQLite for development)
-- chess.js for chess logic
-
-## Development
+## Scripts
 
 - `npm run dev` - Start the Next.js development server only
 - `npm run server` - Start the Socket.IO server only
 - `npm run dev:full` - Start both servers for local development
 - `npm run build` - Build the production application
 - `npm run start` - Start the production Next.js server
+- `npm run start:unified` - Start the unified server (both Next.js and Socket.IO)
+
+## Database Migrations
+
+When deploying to production, the application automatically handles database migrations:
+
+- For PostgreSQL, it runs `prisma migrate deploy` first, then falls back to `prisma db push` if needed
+- For SQLite, it uses `prisma db push` directly
+
+## Troubleshooting
+
+### Socket.IO Connection Issues
+
+If you're experiencing connection issues:
+
+1. Check that the `NEXT_PUBLIC_SOCKET_URL` is correctly set
+2. Ensure your server is accessible from the client's network
+3. Check browser console for CORS errors
+
+### Database Connection Issues
+
+If you're experiencing database connection issues:
+
+1. Verify your `DATABASE_URL` is correctly set
+2. Check that your database server is running
+3. Ensure your schema is up to date: `npx prisma db push`
 
 ## License
 

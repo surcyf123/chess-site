@@ -1,0 +1,31 @@
+{
+  "name": "chess-site",
+  "version": "0.1.0",
+  "dependencies": {
+    "@prisma/client": "^5.0.0",
+    "chess.js": "^0.12.1",
+    "next": "^13.4.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io": "^4.6.1",
+    "socket.io-client": "^4.6.1"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "server": "ts-node src/server.ts",
+    "dev:full": "concurrently \"npm run dev\" \"npm run server\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.1",
+    "typescript": "^5.0.4",
+    "ts-node": "^10.9.1",
+    "@types/node": "^18.16.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.23",
+    "tailwindcss": "^3.3.2"
+  }
+}

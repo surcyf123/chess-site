@@ -1,0 +1,360 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --board-light: #f0d9b5;
+  --board-dark: #b58863;
+  --bg-primary: #2f3136;
+  --bg-secondary: #1a1b1e;
+  --highlight-available: rgba(0, 132, 255, 0.6);
+  --highlight-capture: rgba(255, 45, 85, 0.7);
+  --highlight-selected: rgba(75, 161, 255, 0.5);
+  --highlight-last-move: rgba(255, 221, 87, 0.35);
+}
+
+body {
+  @apply bg-[#1a1b1e] text-white;
+}
+
+/* Main container for the board and controls */
+.chess-container {
+  @apply flex flex-col items-center;
+  width: 100%;
+}
+
+.chess-board-wrapper {
+  @apply flex flex-col items-center justify-center p-6 bg-[#2d2a23] rounded-xl border border-[#444] shadow-2xl;
+  margin-bottom: 16px;
+}
+
+.chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: min(80vw, 560px);
+  aspect-ratio: 1/1;
+  border: 5px solid #2d2a23;
+  border-radius: 5px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  gap: 0;
+  position: relative;
+}
+
+.chess-square {
+  aspect-ratio: 1;
+  @apply flex items-center justify-center relative cursor-pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.chess-square:hover {
+  filter: brightness(1.1);
+}
+
+.chess-square-light {
+  background-color: var(--board-light);
+}
+
+.chess-square-dark {
+  background-color: var(--board-dark);
+}
+
+/* Chess pieces */
+.chess-piece {
+  @apply absolute inset-0 flex items-center justify-center select-none;
+  font-size: 3.5rem;
+  transform-origin: center;
+  transition: transform 0.15s ease-out, filter 0.15s ease;
+  cursor: grab;
+  z-index: 10;
+  will-change: transform;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.chess-piece:hover {
+  transform: scale(1.08);
+  filter: brightness(1.1);
+}
+
+.chess-piece:active {
+  cursor: grabbing;
+  transform: scale(1.12);
+}
+
+.chess-piece-white {
+  color: #fff;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+.chess-piece-black {
+  color: #000;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+/* HIGHLIGHT EFFECTS */
+.chess-square.selected-square::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--highlight-selected);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.chess-square.last-move::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--highlight-last-move);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.chess-square.available-move::before {
+  content: '';
+  position: absolute;
+  width: 14%;
+  height: 14%;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--highlight-available);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.chess-square.available-capture::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 2px solid var(--highlight-capture);
+  border-radius: 3px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Chess Clocks */
+.chess-clocks-container {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 560px;
+  margin-bottom: 16px;
+}
+
+.chess-clock {
+  background: linear-gradient(to bottom, #2a2a2a, #1a1a1a);
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #333;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 48%;
+  position: relative;
+  overflow: hidden;
+}
+
+.chess-clock-active {
+  border: 2px solid #4a88ff;
+  box-shadow: 0 0 10px rgba(74, 136, 255, 0.4);
+}
+
+.chess-clock-running {
+  animation: pulse 1.5s infinite;
+}
+
+.chess-clock-value {
+  font-family: monospace;
+  font-weight: bold;
+  font-size: 2rem;
+  letter-spacing: 0.1em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  margin-bottom: 4px;
+}
+
+.chess-clock-player {
+  font-size: 0.75rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 500;
+}
+
+.chess-clock-white .chess-clock-value {
+  color: #ffffff;
+}
+
+.chess-clock-black .chess-clock-value {
+  color: #eeeeee;
+}
+
+/* Indicator for current turn */
+.turn-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  z-index: 20;
+  transition: background-color 0.3s ease;
+}
+
+.turn-indicator-white {
+  background: linear-gradient(to right, #ffffff, #cccccc);
+}
+
+.turn-indicator-black {
+  background: linear-gradient(to right, #444444, #222222);
+}
+
+/* Coordinate labels */
+.coordinate-label {
+  position: absolute;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.5);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.rank-label {
+  left: 3px;
+  top: 3px;
+}
+
+.file-label {
+  right: 3px;
+  bottom: 3px;
+}
+
+.chess-square-dark .coordinate-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Game Status - FIXED to not overlap board */
+.game-status {
+  background: linear-gradient(180deg, #3a3b3d 0%, #1f2023 100%);
+  color: #4a88ff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  border: 1px solid #424448;
+  width: 100%;
+  max-width: 560px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 16px;
+  z-index: 5;
+}
+
+.your-turn {
+  color: #4a88ff;
+}
+
+.opponents-turn {
+  color: #e0e0e0;
+}
+
+/* Status indicator border animation */
+.your-turn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(to right, #4a88ff, #00c3ff, #4a88ff);
+  animation: moveGradient 2s linear infinite;
+  background-size: 200% 100%;
+}
+
+@keyframes moveGradient {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Animation for active clock */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(74, 136, 255, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(74, 136, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 136, 255, 0);
+  }
+}
+
+/* Gaming styled button */
+.gaming-button {
+  background: linear-gradient(to bottom, #623d96, #472b72);
+  border: 1px solid #7b4fc9;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(123, 79, 201, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.gaming-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(123, 79, 201, 0.4);
+  background: linear-gradient(to bottom, #724aad, #522f85);
+}
+
+.gaming-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(123, 79, 201, 0.3);
+}
+
+/* Rotate pieces when board is rotated */
+.chess-board.rotate-180 .chess-piece {
+  transform: rotate(180deg);
+}
+
+.chess-board.rotate-180 .chess-piece:hover {
+  transform: rotate(180deg) scale(1.1);
+}
+
+/* Keep coordinate labels upright when board is rotated */
+.chess-board.rotate-180 .coordinate-label {
+  transform: rotate(180deg);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .chess-board {
+    width: 90vw;
+    border-width: 3px;
+  }
+  
+  .chess-piece {
+    font-size: 2.8rem;
+  }
+  
+  .chess-clocks-container {
+    max-width: 90vw;
+  }
+  
+  .game-status {
+    max-width: 90vw;
+    font-size: 1rem;
+  }
+  
+  .coordinate-label {
+    font-size: 0.55rem;
+  }
+} 

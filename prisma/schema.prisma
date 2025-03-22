@@ -1,0 +1,37 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Game {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  whitePlayer String
+  blackPlayer String
+  timeControl Int    // Time in seconds
+  incrementPerMove Int // Time added after each move in seconds
+  status     String  // "ongoing", "completed", "abandoned"
+  winner     String? // "white", "black", or null for draw/ongoing
+  moves      Move[]
+}
+
+model Move {
+  id        String   @id @default(uuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id])
+  moveNumber Int
+  move      String   // The move in algebraic notation
+  timestamp DateTime @default(now())
+  whiteTimeLeft Int  // Time left for white player in seconds
+  blackTimeLeft Int  // Time left for black player in seconds
+
+  @@index([gameId])
+}

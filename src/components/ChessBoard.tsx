@@ -1,15 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Chess } from 'chess.js';
 import { Socket } from 'socket.io-client';
+import GameOverlay from './GameOverlay';
+import { useRouter } from 'next/navigation';
+
+// Define TimeControl interface
+interface TimeControl {
+  white: number;
+  black: number;
+}
 
 // Helper function to safely create a Chess instance
 const createChess = (fen?: string) => {
   try {
-    // With the newer chess.js version, Chess is a class that should be instantiated with 'new'
-    return fen ? new Chess(fen) : new Chess();
+    // Proper way to initialize Chess - no 'new' keyword needed for newer versions
+    return fen ? Chess(fen) : Chess();
   } catch (e) {
     console.error('Error creating Chess instance:', e);
-    throw new Error('Failed to initialize chess engine');
+    // Try alternative initialization method for older versions
+    try {
+      return fen ? new Chess(fen) : new Chess();
+    } catch (nestedError) {
+      console.error('Alternative chess initialization also failed:', nestedError);
+      throw new Error('Failed to initialize chess engine');
+    }
   }
 };
 
@@ -21,11 +35,6 @@ interface ChessBoardProps {
   incrementPerMove: number;
 }
 
-interface TimeControl {
-  white: number;
-  black: number;
-}
-
 export const ChessBoard: React.FC<ChessBoardProps> = ({
   gameId,
   socket,
@@ -33,6 +42,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   timeControl,
   incrementPerMove,
 }) => {
+  const router = useRouter();
   const [game, setGame] = useState(() => createChess());
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [availableMoves, setAvailableMoves] = useState<string[]>([]);
@@ -43,6 +53,9 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   const [isMyTurn, setIsMyTurn] = useState(playerColor === 'white');
   const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null);
   const [draggedPiece, setDraggedPiece] = useState<string | null>(null);
+  const [gameOver, setGameOver] = useState(false);
+  const [gameOverReason, setGameOverReason] = useState<'checkmate' | 'stalemate' | 'time' | null>(null);
+  const [winner, setWinner] = useState<'white' | 'black' | 'draw' | null>(null);
 
   // Memoize the game state update function
   const updateGameState = useCallback((newFen: string) => {
@@ -60,7 +73,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       timeControl,
       incrementPerMove
     });
-    console.log('Highlighting should work - CSS classes properly initialized');
     
     // Ensure initial timers are set correctly
     setTime({
@@ -80,29 +92,73 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       isMyTurn,
       playerColor
     });
-  }, [game, isMyTurn, playerColor]);
 
+    // Check for game over conditions
+    if (game.isCheckmate()) {
+      const checkmatedColor = game.turn() === 'w' ? 'black' : 'white';
+      setGameOver(true);
+      setGameOverReason('checkmate');
+      setWinner(checkmatedColor);
+      
+      // Notify server about game over
+      socket.emit('gameOver', { 
+        gameId, 
+        winner: checkmatedColor 
+      });
+    } else if (game.isDraw() || game.isStalemate()) {
+      setGameOver(true);
+      setGameOverReason('stalemate');
+      setWinner('draw');
+      
+      // Notify server about game over
+      socket.emit('gameOver', { 
+        gameId, 
+        winner: 'draw' 
+      });
+    }
+  }, [game, isMyTurn, playerColor, gameId, socket]);
+
+  // Timer update effect - countdown active player's time
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    // Update: Only run a timer if game is in progress
-    if (game && !game.isGameOver()) {
-      // If it's my turn, decrement my timer
-      if (isMyTurn) {
-        console.log('Starting timer for', playerColor, 'with time:', time[playerColor]);
-        interval = setInterval(() => {
-          setTime(prev => ({
+    // Only run timer if game is in progress
+    if (game && !game.isGameOver() && !gameOver) {
+      const activeColor = game.turn() === 'w' ? 'white' : 'black';
+      
+      // Start counting down the active player's clock
+      interval = setInterval(() => {
+        setTime(prev => {
+          // If clock reaches zero, game over by timeout
+          if (prev[activeColor] <= 1) {
+            clearInterval(interval);
+            const winner = activeColor === 'white' ? 'black' : 'white';
+            setGameOver(true);
+            setGameOverReason('time');
+            setWinner(winner);
+            
+            // Notify server about timeout
+            socket.emit('gameOver', { 
+              gameId, 
+              winner 
+            });
+            
+            return prev;
+          }
+          
+          // Decrement active player's time
+          return {
             ...prev,
-            [playerColor]: Math.max(0, prev[playerColor] - 1)
-          }));
-        }, 1000);
-      }
+            [activeColor]: prev[activeColor] - 1
+          };
+        });
+      }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isMyTurn, playerColor, time, game]);
+  }, [game, gameOver, gameId, socket]);
 
   // Handle socket connection issues and reconnection
   useEffect(() => {
@@ -149,9 +205,24 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
             black: data.blackTimeLeft
           });
         }
+        
+        // Check if game status is "completed" and set game over state
+        if (data.status === 'completed' && data.winner) {
+          setGameOver(true);
+          setWinner(data.winner);
+          setGameOverReason(data.reason || 'checkmate');
+        }
       } catch (error) {
         console.error('Error processing game state:', error);
       }
+    });
+    
+    // Listen for game ended event
+    socket.on('gameEnded', (data) => {
+      console.log('Game ended event received:', data);
+      setGameOver(true);
+      setWinner(data.winner);
+      setGameOverReason(data.reason || 'checkmate');
     });
     
     // Initially join the game
@@ -163,6 +234,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       socket.off('connect_error');
       socket.off('reconnect');
       socket.off('gameState');
+      socket.off('gameEnded');
     };
   }, [socket, gameId, playerColor]);
 
@@ -194,10 +266,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
           return;
         }
 
-        // Log current game state for debugging
-        console.log('Current FEN before applying move:', game.fen());
-        console.log('Current turn:', game.turn(), 'Player color:', playerColor);
-        
         // Create a fresh Chess instance to validate the move
         try {
           // Create a new game instance with current FEN
@@ -207,9 +275,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
           const result = newGame.move({ from, to, promotion });
           
           if (result) {
-            console.log('Move applied successfully, new FEN:', newGame.fen());
-            console.log('New turn:', newGame.turn(), 'Player color:', playerColor);
-            
             // Update game state
             setGame(newGame);
             setLastMove({ from, to });
@@ -226,72 +291,60 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
             setAvailableMoves([]);
           } else {
             console.error('Invalid move rejected by chess.js:', { from, to, promotion });
-            console.error('Available moves:', newGame.moves({ verbose: true }));
           }
         } catch (moveError) {
           console.error('Error applying move to chess.js:', moveError);
-          console.error('Move:', { from, to, promotion });
-          console.error('Game state:', game.fen());
-          console.error('Stack:', moveError.stack);
         }
       } catch (error) {
         console.error('Error handling received move:', error);
-        console.error('Received data:', data);
-        console.error('Game state:', game.fen());
-        console.error('Stack:', error.stack);
       }
     };
 
     socket.on('moveMade', handleMoveMade);
     
-    // Return a cleanup function that removes the event listener
     return () => {
       socket.off('moveMade', handleMoveMade);
     };
-  }, [socket, game, playerColor, time, lastMove]);
+  }, [game, lastMove, playerColor, socket, time]);
 
-  // Update initial turn state when component mounts
-  useEffect(() => {
-    const isWhiteTurn = game.turn() === 'w';
-    setIsMyTurn((isWhiteTurn && playerColor === 'white') || (!isWhiteTurn && playerColor === 'black'));
-  }, [game, playerColor]);
-
-  // More robust logging for highlighting
-  useEffect(() => {
-    if (selectedSquare) {
-      console.log(`Selected square: ${selectedSquare}`);
-      console.log(`Available moves for ${selectedSquare}:`, availableMoves);
-    } else {
-      console.log('No square selected');
-    }
-  }, [selectedSquare, availableMoves]);
-
-  const getAvailableMoves = (square: string): string[] => {
+  const getAvailableMoves = useCallback((square: string) => {
     try {
-      if (!square) return [];
-      console.log('Getting available moves for square:', square);
-      const moves = game.moves({ square, verbose: true });
-      const validMoves = moves.map(move => move.to);
-      console.log('Available moves computed:', validMoves);
-      return validMoves;
-    } catch (e) {
-      console.error('Error getting available moves:', e);
+      if (!game) return [];
+
+      // Get all legal moves from the square
+      const moves = game.moves({
+        square,
+        verbose: true
+      });
+
+      // Return just the target squares
+      return moves.map(move => move.to);
+    } catch (error) {
+      console.error('Error getting available moves:', error);
       return [];
     }
-  };
+  }, [game]);
 
-  const isCapture = (from: string, to: string): boolean => {
-    if (!from || !to) return false;
+  const isCapture = useCallback((from: string, to: string) => {
     try {
-      const moves = game.moves({ square: from, verbose: true });
-      const isCapture = moves.some(move => move.to === to && (move.captured || move.flags.includes('e')));
-      console.log('Checking capture:', { from, to, isCapture });
-      return isCapture;
-    } catch (e) {
-      console.error('Error checking capture:', e);
+      // A move is a capture if there's a piece at the destination
+      // or if it's an en passant move
+      const piece = game.get(to);
+      if (piece) return true;
+
+      // Check for en passant
+      const moves = game.moves({ 
+        square: from, 
+        verbose: true 
+      });
+      
+      const move = moves.find(m => m.to === to);
+      return move ? move.flags.includes('e') : false;
+    } catch (error) {
+      console.error('Error checking if move is capture:', error);
       return false;
     }
-  };
+  }, [game]);
 
   const makeMove = useCallback((from: string, to: string) => {
     if (!isMyTurn) {
@@ -300,10 +353,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     }
 
     try {
-      console.log('Attempting move:', { from, to });
-      console.log('Current FEN:', game.fen());
-      console.log('Current turn:', game.turn(), 'Player color:', playerColor);
-      
       // Create a new game instance and try the move
       const newGame = createChess(game.fen());
       const move = newGame.move({ from, to, promotion: 'q' });
@@ -312,10 +361,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         console.error('Invalid move:', { from, to });
         return false;
       }
-
-      console.log('Move valid, applying:', move);
-      console.log('New FEN:', newGame.fen());
-      console.log('New turn:', newGame.turn());
 
       // Update local game state
       setGame(newGame);
@@ -343,28 +388,22 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       return true;
     } catch (error) {
       console.error('Error making move:', error);
-      console.error('Game state:', game.fen());
       return false;
     }
   }, [game, isMyTurn, playerColor, time, gameId, socket, incrementPerMove]);
 
   const handleSquareClick = useCallback((square: string) => {
-    console.log('Square clicked:', square);
-
-    if (!isMyTurn) {
-      console.log('Not your turn');
+    if (!isMyTurn || gameOver) {
       return;
     }
 
     // Get the piece at the clicked square
     const piece = game.get(square);
-    console.log('Piece at square:', piece);
 
     // If a square is already selected
     if (selectedSquare) {
       // If clicking the same square, deselect it
       if (square === selectedSquare) {
-        console.log('Deselecting square:', square);
         setSelectedSquare(null);
         setAvailableMoves([]);
         return;
@@ -372,7 +411,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
       // If clicking a valid destination square, make the move
       if (availableMoves.includes(square)) {
-        console.log('Making move:', selectedSquare, 'to', square);
         try {
           // Create a new game instance to validate the move
           const newGame = createChess(game.fen());
@@ -385,7 +423,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
           });
 
           if (!moveResult) {
-            console.error('Invalid move:', { from: selectedSquare, to: square });
             // Clear selection if move is invalid
             setSelectedSquare(null);
             setAvailableMoves([]);
@@ -422,7 +459,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
           return;
         } catch (e) {
           console.error('Error making move:', e);
-          console.error('Stack:', e.stack);
           
           // Clear selection on error
           setSelectedSquare(null);
@@ -435,55 +471,42 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     // Only select if it's our piece
     if (piece && piece.color === (playerColor === 'white' ? 'w' : 'b')) {
       const moves = getAvailableMoves(square);
-      console.log('Setting selected square:', square, 'with moves:', moves);
       
       // Only set selection if there are valid moves
       if (moves && moves.length > 0) {
         setSelectedSquare(square);
         setAvailableMoves(moves);
       } else {
-        console.log('No valid moves for this piece');
         // Clear selection if no valid moves
         setSelectedSquare(null);
         setAvailableMoves([]);
       }
     } else {
       // If clicking on an empty square or opponent's piece, clear selection
-      console.log('Clearing selection, clicked on empty or opponent square');
       setSelectedSquare(null);
       setAvailableMoves([]);
     }
-  }, [selectedSquare, availableMoves, isMyTurn, game, playerColor, time, incrementPerMove, gameId, socket, getAvailableMoves]);
+  }, [selectedSquare, availableMoves, isMyTurn, game, playerColor, time, incrementPerMove, gameId, socket, getAvailableMoves, gameOver]);
 
   const handleDragStart = (e: React.DragEvent, square: string) => {
-    const piece = game.get(square);
-    if (!isMyTurn || !piece || piece.color !== playerColor.charAt(0)) {
+    if (!isMyTurn || gameOver) {
       e.preventDefault();
       return;
     }
     
-    // Set dragged piece and selected square
-    setDraggedPiece(square);
-    setSelectedSquare(square);
+    const piece = game.get(square);
+    if (!piece || piece.color !== (playerColor === 'white' ? 'w' : 'b')) {
+      e.preventDefault();
+      return;
+    }
     
-    // Calculate and set available moves
-    const moves = getAvailableMoves(square);
-    console.log('Drag start, setting moves:', moves);
-    setAvailableMoves(moves);
-    
-    // Store dragged square data
     e.dataTransfer.setData('text/plain', square);
+    setDraggedPiece(square);
     
-    // Make the ghost image transparent
-    const ghostImage = document.createElement('div');
-    ghostImage.style.opacity = '0';
-    document.body.appendChild(ghostImage);
-    e.dataTransfer.setDragImage(ghostImage, 0, 0);
-    
-    // Remove temporary element after dragging starts
-    setTimeout(() => {
-      document.body.removeChild(ghostImage);
-    }, 0);
+    // Calculate available moves for this piece
+    const moves = getAvailableMoves(square);
+    setSelectedSquare(square);
+    setAvailableMoves(moves);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -494,8 +517,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     e.preventDefault();
     const sourceSquare = e.dataTransfer.getData('text/plain');
     
-    if (!isMyTurn) {
-      console.log('Not your turn');
+    if (!isMyTurn || gameOver) {
       return;
     }
     
@@ -503,9 +525,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       try {
         // Create a new game instance to validate the move
         const newGame = createChess(game.fen());
-        console.log('Validating move:', sourceSquare, 'to', targetSquare);
-        console.log('Current FEN before move:', newGame.fen());
-        console.log('Current turn:', newGame.turn());
         
         // Try to make the move in our local copy first
         const moveResult = newGame.move({
@@ -515,12 +534,8 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         });
 
         if (!moveResult) {
-          console.error('Invalid move:', { sourceSquare, targetSquare });
           return;
         }
-        
-        console.log('Move validated:', moveResult);
-        console.log('New FEN after move:', newGame.fen());
 
         // Update timer with increment for the current player
         const updatedTime = {
@@ -530,7 +545,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         
         // Construct the move string
         const moveString = sourceSquare + targetSquare + (moveResult.promotion || '');
-        console.log('Sending move string to server:', moveString);
         
         // First update our local state to avoid lag
         setGame(newGame);
@@ -549,34 +563,29 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         // Clear selection and drag state
         setSelectedSquare(null);
         setAvailableMoves([]);
+        setDraggedPiece(null);
         
         // Check for game over
         if (newGame.isGameOver()) {
           let winner = 'draw';
+          let reason: 'checkmate' | 'stalemate' | null = null;
+          
           if (newGame.isCheckmate()) {
             winner = newGame.turn() === 'w' ? 'black' : 'white';
+            reason = 'checkmate';
+          } else if (newGame.isDraw() || newGame.isStalemate()) {
+            reason = 'stalemate';
           }
-          socket.emit('gameOver', { gameId, winner });
+          
+          socket.emit('gameOver', { gameId, winner, reason });
         }
       } catch (e) {
         console.error('Error making move:', e);
-        console.error('Current game state:', {
-          fen: game.fen(),
-          turn: game.turn(),
-          isCheck: game.isCheck(),
-          moveNumber: game.moveNumber()
-        });
-        console.error('Stack:', e.stack);
       }
-    } else {
-      console.log('Move not in available moves:', targetSquare);
-      console.log('Available moves:', availableMoves);
     }
     
-    // Always clear selection and drag state
+    // Always clear drag state
     setDraggedPiece(null);
-    setSelectedSquare(null);
-    setAvailableMoves([]);
   };
 
   const renderSquare = (i: number) => {
@@ -634,7 +643,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         {piece && (
           <div 
             className={`chess-piece ${piece.color === 'w' ? 'chess-piece-white' : 'chess-piece-black'}`}
-            draggable={isMyTurn && piece.color === playerColor.charAt(0)}
+            draggable={isMyTurn && !gameOver && piece.color === playerColor.charAt(0)}
             onDragStart={(e) => handleDragStart(e, square)}
             onClick={(e) => {
               // Stop propagation to prevent triggering the square click event
@@ -669,20 +678,10 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // Force refresh highlighting for testing
-  const forceRefreshHighlighting = useCallback(() => {
-    if (selectedSquare) {
-      const moves = getAvailableMoves(selectedSquare);
-      setAvailableMoves([...moves]); // Create new array to force re-render
-    }
-  }, [selectedSquare, getAvailableMoves]);
-
-  // Use this effect to force refresh highlighting when needed
-  useEffect(() => {
-    if (selectedSquare) {
-      forceRefreshHighlighting();
-    }
-  }, [selectedSquare, forceRefreshHighlighting]);
+  const handlePlayAgain = () => {
+    // Navigate to home page to create a new game
+    router.push('/');
+  };
 
   return (
     <div className="chess-container">
@@ -703,9 +702,14 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         </div>
       </div>
 
-      {/* Game Status - Moved ABOVE the board */}
+      {/* Game Status */}
       <div className={`game-status ${isMyTurn ? 'your-turn' : 'opponents-turn'}`}>
-        {isMyTurn ? "Your Turn" : "Opponent's Turn"}
+        {gameOver ? (
+          winner === playerColor ? "You won!" : 
+          winner === 'draw' ? "Game drawn" : "You lost"
+        ) : (
+          isMyTurn ? "Your Turn" : "Opponent's Turn"
+        )}
       </div>
 
       {/* Chess Board with Wrapper */}
@@ -713,6 +717,15 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         <div className="chess-board">
           {[...Array(64)].map((_, i) => renderSquare(i))}
         </div>
+        
+        {/* Game Over Overlay */}
+        <GameOverlay
+          isVisible={gameOver}
+          gameOverReason={gameOverReason}
+          winner={winner}
+          playerColor={playerColor}
+          onPlayAgain={handlePlayAgain}
+        />
       </div>
     </div>
   );

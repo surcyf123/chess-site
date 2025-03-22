@@ -267,3 +267,9 @@ If you're experiencing database connection issues:
 ## License
 
 MIT 
+
+## Deployment
+
+This application is deployed on Render. The deployment is automated through Git integration.
+
+Last deployment: March 22, 2025 

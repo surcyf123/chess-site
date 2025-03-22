@@ -1,0 +1,18 @@
+run = "npm run start:unified"
+language = "nodejs"
+entrypoint = "index.js"
+hidden = [".config", "package-lock.json"]
+
+[env]
+NODE_ENV = "production"
+
+[packager]
+language = "nodejs"
+
+[packager.features]
+packageSearch = true
+guessImports = true
+
+[deployment]
+run = ["npm", "run", "start:unified"]
+deploymentTarget = "cloudrun" 

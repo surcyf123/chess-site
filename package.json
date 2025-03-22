@@ -14,8 +14,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "server": "ts-node src/server.ts",
-    "dev:full": "concurrently \"npm run dev\" \"npm run server\""
+    "server:ts": "ts-node src/server.ts",
+    "server": "node server.js",
+    "dev:full": "concurrently \"npm run dev\" \"npm run server:ts\"",
+    "start:unified": "node index.js"
   },
   "devDependencies": {
     "concurrently": "^8.0.1",

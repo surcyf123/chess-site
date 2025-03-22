@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: chess-site-socket-server
+    env: node
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm run server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URL
+        value: https://chess-site.vercel.app
+      - key: DATABASE_URL
+        sync: false 

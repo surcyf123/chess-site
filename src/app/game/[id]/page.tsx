@@ -38,8 +38,12 @@ export default function Game({ params }: { params: { id: string } }) {
   }, [socket]);
 
   useEffect(() => {
-    // Update socket server to use port 3001 (where our Socket.IO server is running)
-    const newSocket = io('http://localhost:3001', {
+    // Get the socket URL from environment variable
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    console.log('Connecting to socket server at:', socketUrl);
+    
+    // Update socket server to use the environment variable
+    const newSocket = io(socketUrl, {
       transports: ['websocket'],
       upgrade: false,
       reconnection: true,

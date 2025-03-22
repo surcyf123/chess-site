@@ -8,6 +8,14 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 const prisma = new PrismaClient();
 
+// Get port from environment variable or default to 3001
+const PORT = parseInt(process.env.PORT || '3001', 10);
+
+// Allowed origins for CORS
+const allowedOrigins = dev 
+  ? '*' 
+  : [process.env.FRONTEND_URL || 'https://chess-site.vercel.app', 'http://localhost:3000'];
+
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     handle(req, res);
@@ -16,7 +24,7 @@ app.prepare().then(() => {
   // Configure Socket.IO with CORS settings
   const io = new Server(server, {
     cors: {
-      origin: "*", // Allow all origins for development
+      origin: allowedOrigins, // Use environment-specific origins
       methods: ["GET", "POST"],
       credentials: true
     },
@@ -116,8 +124,8 @@ app.prepare().then(() => {
     });
   });
 
-  // Change server port to 3001 to avoid conflict with Next.js dev server
-  server.listen(3001, () => {
-    console.log('> Socket.IO server ready on http://localhost:3001');
+  // Use PORT from environment variable
+  server.listen(PORT, () => {
+    console.log(`> Socket.IO server ready on http://localhost:${PORT}`);
   });
 }); 

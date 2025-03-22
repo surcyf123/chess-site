@@ -13,17 +13,11 @@ interface TimeControl {
 // Helper function to safely create a Chess instance
 const createChess = (fen?: string) => {
   try {
-    // Proper way to initialize Chess - no 'new' keyword needed for newer versions
-    return fen ? Chess(fen) : Chess();
+    // Always use the 'new' keyword for v0.12.1
+    return fen ? new Chess(fen) : new Chess();
   } catch (e) {
     console.error('Error creating Chess instance:', e);
-    // Try alternative initialization method for older versions
-    try {
-      return fen ? new Chess(fen) : new Chess();
-    } catch (nestedError) {
-      console.error('Alternative chess initialization also failed:', nestedError);
-      throw new Error('Failed to initialize chess engine');
-    }
+    throw new Error('Failed to initialize chess engine');
   }
 };
 

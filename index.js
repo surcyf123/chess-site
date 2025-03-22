@@ -133,11 +133,13 @@ async function initializeDatabase() {
 
 // CORS configuration
 const allowedOrigins = isProd 
-  ? [process.env.FRONTEND_URL || '*', 'http://localhost:3000']
+  ? [process.env.FRONTEND_URL || '*', 'http://localhost:3000', '*']
   : '*';
 
 console.log(`Starting server in ${isProd ? 'production' : 'development'} mode on port ${port}`);
 console.log(`Allowed origins: ${JSON.stringify(allowedOrigins)}`);
+console.log(`FRONTEND_URL: ${process.env.FRONTEND_URL || 'not set'}`);
+console.log(`Socket.IO path: /socket.io/`);
 
 // Prepare the Next.js app, then set up the server
 app.prepare().then(() => {
@@ -153,7 +155,14 @@ app.prepare().then(() => {
       methods: ["GET", "POST"],
       credentials: true
     },
-    path: '/socket.io/'
+    path: '/socket.io/',
+    transports: ['websocket', 'polling'],
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    connectTimeout: 30000,
+    allowUpgrades: true,
+    upgradeTimeout: 20000,
+    maxHttpBufferSize: 1e8
   });
 
   // Add connection error logging

@@ -44,13 +44,12 @@ export default function Game({ params }: { params: { id: string } }) {
     
     // Update socket server to use the environment variable
     const newSocket = io(socketUrl, {
-      transports: ['websocket'],
-      upgrade: false,
+      transports: ['websocket', 'polling'], // Allow both WebSocket and polling as fallback
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      forceNew: true,
-      path: '/socket.io/' // Explicit path for socket.io
+      timeout: 20000, // Longer timeout for connections
+      path: '/socket.io/'
     });
     setSocket(newSocket);
 

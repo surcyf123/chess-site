@@ -55,6 +55,20 @@ npm run dev:full
 
 The application can be deployed using multiple platforms. Here are detailed instructions for each option.
 
+### Using the Deployment Helper
+
+We've created a deployment helper script to simplify the process:
+
+```bash
+npm run deploy
+```
+
+This interactive script will:
+1. Guide you through selecting a deployment platform
+2. Check for required prerequisites
+3. Build the application
+4. Deploy to your chosen platform
+
 ### Unified Deployment (Recommended)
 
 For simpler deployment, we've created a unified server that serves both the Next.js frontend and Socket.IO backend from a single process.
@@ -159,6 +173,8 @@ For advanced users who want to separate the frontend and backend:
 - `npm run build` - Build the production application
 - `npm run start` - Start the production Next.js server
 - `npm run start:unified` - Start the unified server (both Next.js and Socket.IO)
+- `npm run deploy` - Interactive deployment helper script
+- `npm run test:prod` - Test production build locally
 
 ## Database Migrations
 

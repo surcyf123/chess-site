@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Display build timestamp for tracking deployments
+echo "Build started at: $(date)"
+
 # Display Node.js and NPM versions
 echo "Node version: $(node -v)"
 echo "NPM version: $(npm -v)"
@@ -21,4 +24,4 @@ npm list chess.js
 echo "Building Next.js app..."
 npm run build
 
-echo "Build completed successfully!" 
+echo "Build completed successfully at $(date)!" 

@@ -36,6 +36,7 @@ npm run setup
 
 This script will:
 - Create a proper `.env` file if it doesn't exist
+- Ensure SQLite database is configured for development
 - Install dependencies
 - Set up the database
 - Start the development server
@@ -68,30 +69,30 @@ npm run dev:full
 
 7. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Database Configuration
+
+This project supports both SQLite (for development) and PostgreSQL (for production).
+
+For local development, SQLite is used by default. For production, PostgreSQL is recommended.
+
+To switch between database providers:
+
+- **Use SQLite:** `npm run use:sqlite` 
+- **Use PostgreSQL:** `npm run use:postgres`
+
+To create a migration for PostgreSQL:
+
+```bash
+npm run migrate:create my-migration-name
+```
+
 ## Deployment Options
 
 The application can be deployed using multiple platforms. Here are detailed instructions for each option.
 
 ### Quick Deployment to Render.com
 
-To quickly deploy the application to Render.com:
-
-1. Create a new account at [Render.com](https://render.com) if you don't have one
-2. Create a new Web Service
-3. Connect your GitHub/GitLab repository or use the public URL: https://github.com/yourusername/chess-site
-4. Configure the service with these settings:
-   - **Name**: chess-site
-   - **Environment**: Node
-   - **Build Command**: `./prepare-production.sh`
-   - **Start Command**: `npm run start:unified`
-   - **Plan**: Free
-5. Add these environment variables:
-   - `NODE_ENV`: production
-   - `DATABASE_PROVIDER`: postgresql
-   - `DATABASE_URL`: (Render will provide this if you add a PostgreSQL database)
-6. Click "Create Web Service"
-
-Your chess game will be accessible at the URL provided by Render when the deployment is complete (typically something like `https://chess-site.onrender.com`).
+For the fastest way to get your chess site online, follow the [Quick Start Guide](QUICK-START.md).
 
 ### Using the Deployment Helper
 
@@ -121,6 +122,7 @@ npm run setup:prod
 
 This script will:
 - Check for required environment variables
+- Configure PostgreSQL as the database provider
 - Install dependencies
 - Set up the database
 - Build the application

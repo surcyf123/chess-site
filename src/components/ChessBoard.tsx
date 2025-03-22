@@ -588,7 +588,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   };
 
   const getPieceSymbol = (type: string, color: string): string => {
-    const pieces: { [key: string]: string } = {
+    const pieces: { [key: string]: { [key: string]: string } } = {
       'w': {
         'p': '♙', 'n': '♘', 'b': '♗',
         'r': '♖', 'q': '♕', 'k': '♔'

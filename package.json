@@ -17,7 +17,8 @@
     "server:ts": "ts-node src/server.ts",
     "server": "node server.js",
     "dev:full": "concurrently \"npm run dev\" \"npm run server:ts\"",
-    "start:unified": "node index.js"
+    "start:unified": "node index.js",
+    "postinstall": "prisma generate"
   },
   "devDependencies": {
     "concurrently": "^8.0.1",
@@ -28,6 +29,10 @@
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.14",
     "postcss": "^8.4.23",
-    "tailwindcss": "^3.3.2"
+    "tailwindcss": "^3.3.2",
+    "prisma": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

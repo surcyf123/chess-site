@@ -6,6 +6,16 @@ const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// Environment setup - load env variables if not in production
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    require('dotenv').config();
+    console.log('Loaded environment variables from .env file');
+  } catch (error) {
+    console.warn('dotenv module not found, skipping .env loading');
+  }
+}
+
 // Environment setup
 const dev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.PORT || '3000', 10);

@@ -4,6 +4,7 @@
   "dependencies": {
     "@prisma/client": "^5.0.0",
     "chess.js": "^0.12.1",
+    "dotenv": "^16.3.1",
     "next": "^13.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -18,6 +19,8 @@
     "server": "node server.js",
     "dev:full": "concurrently \"npm run dev\" \"npm run server:ts\"",
     "start:unified": "node index.js",
+    "test:prod": "npm run build && NODE_ENV=production npm run start:unified",
+    "deploy": "node deploy.js",
     "postinstall": "prisma generate"
   },
   "devDependencies": {

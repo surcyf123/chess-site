@@ -60,7 +60,7 @@ app.prepare().then(() => {
         
         const game = await prisma.game.findUnique({
           where: { id: gameId },
-          include: { moves: true }
+          include: { moveHistory: true }
         });
 
         if (game) {
@@ -69,7 +69,7 @@ app.prepare().then(() => {
             data: {
               gameId,
               move,
-              moveNumber: game.moves.length + 1,
+              moveNumber: game.moveHistory.length + 1,
               whiteTimeLeft,
               blackTimeLeft
             }

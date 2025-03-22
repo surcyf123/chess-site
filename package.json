@@ -26,7 +26,7 @@
     "use:sqlite": "cp prisma/schema.prisma prisma/schema.backup.prisma && sed 's/provider = \"postgresql\"/provider = \"sqlite\"/' prisma/schema.backup.prisma > prisma/schema.prisma && npx prisma generate",
     "use:postgres": "cp prisma/schema.postgresql.prisma prisma/schema.prisma && npx prisma generate",
     "migrate:create": "node prisma/create-migration.js",
-    "postinstall": "prisma generate"
+    "postinstall": "if [ -f \"prisma/schema.prisma\" ]; then prisma generate; else echo \"Skipping prisma generate, schema not found\"; fi"
   },
   "devDependencies": {
     "@types/node": "^18.16.0",

@@ -3,7 +3,9 @@ services:
     name: chess-site
     env: node
     plan: free
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: |
+      chmod +x prepare-production.sh
+      ./prepare-production.sh
     startCommand: npm run start:unified
     healthCheckPath: /
     envVars:

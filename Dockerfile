@@ -4,6 +4,8 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
+# Copy prisma schema first since it's needed for postinstall
+COPY prisma/ ./prisma/
 RUN npm install
 
 # Copy app source

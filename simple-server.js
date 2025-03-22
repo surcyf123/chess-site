@@ -1,0 +1,1 @@
+console.log('Starting a simple server on port 3005'); require('http').createServer((req, res) => { res.writeHead(200); res.end('Hello World'); }).listen(3005, () => console.log('Server running on port 3005'));

@@ -318,19 +318,52 @@ app.prepare().then(() => {
     });
   });
 
-  // Start server on the specified port
-  server.listen(port, () => {
-    console.log(`> Server ready on http://localhost:${port}`);
-  }).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${port} is already in use. Trying alternative port.`);
-      const alternatePort = parseInt(process.env.PORT || '0', 10) || 0; // Use any available port
-      server.listen(alternatePort, () => {
-        const actualPort = server.address().port;
-        console.log(`> Server ready on http://localhost:${actualPort}`);
-      });
-    } else {
-      console.error('Server error:', err);
+  // Start server with better handling of port conflicts
+  function startServer(port) {
+    return new Promise((resolve, reject) => {
+      try {
+        const serverInstance = server.listen(port, '0.0.0.0', () => {
+          console.log(`> Server ready on http://0.0.0.0:${port}`);
+          resolve(serverInstance);
+        });
+
+        serverInstance.on('error', (err) => {
+          if (err.code === 'EADDRINUSE') {
+            console.error(`Port ${port} is already in use, trying port ${port + 1}`);
+            reject(err);
+          } else {
+            console.error('Server error:', err);
+            reject(err);
+          }
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  // Try to start server on sequential ports if the default is taken
+  async function attemptServerStart(initialPort, maxAttempts = 10) {
+    let currentPort = initialPort;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        await startServer(currentPort);
+        return; // Successfully started
+      } catch (err) {
+        attempts++;
+        currentPort++;
+        
+        if (attempts >= maxAttempts) {
+          console.error(`Failed to start server after ${maxAttempts} attempts`);
+          console.error('Last error:', err);
+          process.exit(1);
+        }
+      }
     }
-  });
+  }
+
+  // Start the server with retry logic
+  attemptServerStart(port);
 }); 

@@ -100,6 +100,26 @@ Or use our GitHub Action by configuring secrets:
 - `FLY_API_TOKEN`: Your Fly.io API token
 - `DATABASE_URL`: Your Fly.io PostgreSQL connection string
 
+#### Google Cloud Run
+
+1. Fork this repository to your GitHub account
+2. Create a new project in Google Cloud
+3. Enable the Cloud Run and Container Registry APIs
+4. Set up the Google Cloud CLI on your machine
+5. Authenticate with `gcloud auth login`
+6. Set your project ID with `gcloud config set project YOUR_PROJECT_ID`
+7. Deploy using Cloud Build:
+   ```bash
+   gcloud builds submit --config cloudrun.yaml
+   ```
+8. Set the required environment variables:
+   ```bash
+   gcloud run services update chess-site \
+     --set-env-vars DATABASE_URL=YOUR_DATABASE_URL
+   ```
+
+The `Dockerfile.cloudrun` and `cloudrun.yaml` files are already configured for deployment.
+
 ### Split Deployment (Advanced)
 
 For advanced users who want to separate the frontend and backend:

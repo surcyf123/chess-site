@@ -21,6 +21,19 @@ const dev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
 
+// Set default DATABASE_PROVIDER if not set
+if (!process.env.DATABASE_PROVIDER) {
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres')) {
+    process.env.DATABASE_PROVIDER = 'postgresql';
+    console.log('DATABASE_PROVIDER not set, defaulting to postgresql based on DATABASE_URL');
+  } else {
+    process.env.DATABASE_PROVIDER = 'sqlite';
+    console.log('DATABASE_PROVIDER not set, defaulting to sqlite');
+  }
+} else {
+  console.log(`Using DATABASE_PROVIDER: ${process.env.DATABASE_PROVIDER}`);
+}
+
 // Initialize Next.js app
 const app = next({ dev });
 const handle = app.getRequestHandler();

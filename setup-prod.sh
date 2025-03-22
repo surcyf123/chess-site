@@ -14,6 +14,13 @@ else
   echo "✅ DATABASE_URL is set"
 fi
 
+# Make sure we're using PostgreSQL schema for production
+if [ -f prisma/schema.postgresql.prisma ]; then
+  echo "Ensuring PostgreSQL schema for production..."
+  cp prisma/schema.postgresql.prisma prisma/schema.prisma
+  echo "✅ PostgreSQL schema set up"
+fi
+
 # Make sure node_modules exists
 if [ ! -d "node_modules" ]; then
   echo "Installing dependencies..."

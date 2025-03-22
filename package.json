@@ -23,6 +23,9 @@
     "deploy": "node deploy.js",
     "setup": "./setup-dev.sh",
     "setup:prod": "./setup-prod.sh",
+    "use:sqlite": "cp prisma/schema.prisma prisma/schema.backup.prisma && sed 's/provider = \"postgresql\"/provider = \"sqlite\"/' prisma/schema.backup.prisma > prisma/schema.prisma && npx prisma generate",
+    "use:postgres": "cp prisma/schema.postgresql.prisma prisma/schema.prisma && npx prisma generate",
+    "migrate:create": "node prisma/create-migration.js",
     "postinstall": "prisma generate"
   },
   "devDependencies": {

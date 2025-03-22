@@ -18,6 +18,16 @@ else
   echo "✅ .env file already exists"
 fi
 
+# Make sure we're using SQLite schema for development
+if [ -f prisma/schema.postgresql.prisma ]; then
+  echo "Ensuring SQLite schema for development..."
+  cp prisma/schema.prisma prisma/schema.backup.prisma 2>/dev/null || true
+  # Use SQLite provider instead of PostgreSQL
+  sed 's/provider = "postgresql"/provider = "sqlite"/' prisma/schema.prisma > prisma/schema.temp.prisma
+  mv prisma/schema.temp.prisma prisma/schema.prisma
+  echo "✅ SQLite schema set up"
+fi
+
 # Make sure node_modules exists
 if [ ! -d "node_modules" ]; then
   echo "Installing dependencies..."

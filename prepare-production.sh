@@ -8,12 +8,18 @@ echo "Preparing application for production deployment..."
 if [[ "$DATABASE_URL" == *"postgres"* ]]; then
   echo "PostgreSQL database detected"
   DB_TYPE="postgresql"
+  # Use the PostgreSQL schema
+  cp prisma/schema.postgresql.prisma prisma/schema.prisma
+  echo "Using PostgreSQL schema"
 elif [[ "$DATABASE_URL" == *"sqlite"* || "$DATABASE_URL" == "file:"* ]]; then
   echo "SQLite database detected"
   DB_TYPE="sqlite"
 else
   echo "Unknown database type, assuming PostgreSQL"
   DB_TYPE="postgresql"
+  # Use the PostgreSQL schema
+  cp prisma/schema.postgresql.prisma prisma/schema.prisma
+  echo "Using PostgreSQL schema"
 fi
 
 # Install dependencies

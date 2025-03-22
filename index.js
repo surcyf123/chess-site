@@ -151,26 +151,35 @@ app.prepare().then(() => {
   // Configure Socket.IO with CORS settings
   const io = new Server(server, {
     cors: {
-      origin: allowedOrigins,
-      methods: ["GET", "POST"],
-      credentials: true
+      origin: '*', // Allow any origin to connect
+      methods: ["GET", "POST", "OPTIONS"],
+      credentials: false,
+      allowedHeaders: ["Content-Type", "Authorization"]
     },
     path: '/socket.io/',
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'], // Start with polling, then upgrade to WebSocket if possible
     pingTimeout: 60000,
     pingInterval: 25000,
     connectTimeout: 30000,
     allowUpgrades: true,
     upgradeTimeout: 20000,
-    maxHttpBufferSize: 1e8
+    maxHttpBufferSize: 1e8,
+    serveClient: false
   });
 
-  // Add connection error logging
+  // Log all connection events
+  io.engine.on("connection", (socket) => {
+    console.log(`New socket connection established: ${socket.id}`);
+  });
+
+  // Add connection error logging with more details
   io.engine.on("connection_error", (err) => {
-    console.log("Connection error:", err.req?.url);
+    console.log("Connection error details:");
+    console.log("Request URL:", err.req?.url);
     console.log("Error code:", err.code);
     console.log("Error message:", err.message);
     console.log("Error context:", err.context);
+    console.log("Headers:", err.req?.headers);
   });
 
   io.on('connection', (socket) => {
@@ -179,11 +188,21 @@ app.prepare().then(() => {
     // Handle joining a game room
     socket.on('joinGame', async (data) => {
       try {
-        const { gameId } = data;
-        console.log(`User ${socket.id} joining game ${gameId}`);
+        // Handle both formats: { gameId } object or direct gameId string
+        const gameId = typeof data === 'object' ? data.gameId : data;
+        const player = typeof data === 'object' && data.player ? data.player : 'unknown';
         
-        // Join the socket to the game's room
+        if (!gameId) {
+          console.error('Invalid gameId in joinGame event:', data);
+          socket.emit('error', { message: 'Invalid gameId' });
+          return;
+        }
+        
+        console.log(`User ${socket.id} joining game ${gameId} as ${player}`);
+        
+        // Join the socket to the game's room - support both formats
         socket.join(`game:${gameId}`);
+        socket.join(gameId); // Also join with direct gameId for backward compatibility
         
         // Get the current game state from database
         const game = await prisma.game.findUnique({
@@ -198,8 +217,10 @@ app.prepare().then(() => {
             blackTimeLeft: game.blackTimeLeft,
             status: game.status
           });
+          console.log(`Sent game state to client ${socket.id} for game ${gameId}`);
         } else {
           console.error(`Game ${gameId} not found for joining user`);
+          socket.emit('error', { message: 'Game not found' });
         }
       } catch (error) {
         console.error('Error handling joinGame:', error);
@@ -281,14 +302,17 @@ app.prepare().then(() => {
           }
         });
         
-        // Broadcast the move to all clients in the game room
-        io.to(`game:${gameId}`).emit('moveMade', {
+        // Broadcast the move to all clients in the game room - both formats for compatibility
+        const moveData = {
           move,
           whiteTimeLeft,
           blackTimeLeft
-        });
+        };
         
-        console.log(`Move ${move} broadcast to game:${gameId}`);
+        io.to(`game:${gameId}`).emit('moveMade', moveData);
+        io.to(gameId).emit('moveMade', moveData); // Also emit to direct gameId room
+        
+        console.log(`Move ${move} broadcast to game rooms for ${gameId}`);
       } catch (error) {
         console.error('Error handling move:', error);
         socket.emit('error', { message: 'Failed to process move' });
@@ -314,7 +338,10 @@ app.prepare().then(() => {
         });
         
         // Notify all clients in the game room
-        io.to(`game:${gameId}`).emit('gameEnded', { winner });
+        const gameEndData = { winner };
+        io.to(`game:${gameId}`).emit('gameEnded', gameEndData);
+        io.to(gameId).emit('gameEnded', gameEndData); // Also emit to direct gameId room
+        
         console.log(`Game ${gameId} ended. Winner: ${winner}`);
       } catch (error) {
         console.error('Error handling gameOver:', error);

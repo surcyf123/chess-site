@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Chess } from 'chess.js';
+// Update the chess.js import to be compatible with both CommonJS and ESM
+import * as ChessJS from 'chess.js';
 import { Socket } from 'socket.io-client';
 import GameOverlay from './GameOverlay';
 import { useRouter } from 'next/navigation';
+import { SimpleChess } from '../utils/chessEngine';
 
 // Define TimeControl interface
 interface TimeControl {
@@ -10,14 +12,29 @@ interface TimeControl {
   black: number;
 }
 
-// Helper function to safely create a Chess instance
+// Helper function to safely create a Chess instance with multiple fallback patterns
 const createChess = (fen?: string) => {
   try {
-    // Always use the 'new' keyword for v0.12.1
+    // Pattern 1: Direct constructor with new keyword (v0.12.1 standard)
+    const Chess = (ChessJS as any).Chess || ChessJS;
     return fen ? new Chess(fen) : new Chess();
-  } catch (e) {
-    console.error('Error creating Chess instance:', e);
-    throw new Error('Failed to initialize chess engine');
+  } catch (e1) {
+    console.error('First Chess initialization attempt failed:', e1);
+    try {
+      // Pattern 2: Try using the default export directly
+      return fen ? new ChessJS(fen) : new ChessJS();
+    } catch (e2) {
+      console.error('Second Chess initialization attempt failed:', e2);
+      try {
+        // Pattern 3: Try without new keyword (newer versions of chess.js)
+        const Chess = (ChessJS as any).Chess || ChessJS;
+        return fen ? Chess(fen) : Chess();
+      } catch (e3) {
+        console.error('All Chess initialization attempts failed, using fallback engine:', e3);
+        // Final fallback - use our own minimal chess engine implementation
+        return new SimpleChess(fen);
+      }
+    }
   }
 };
 
@@ -160,8 +177,8 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     socket.on('connect', () => {
       console.log('Socket connected successfully');
       
-      // Rejoin the game room on reconnection
-      socket.emit('joinGame', { gameId });
+      // Rejoin the game room on reconnection - ensure gameId is sent as an object
+      socket.emit('joinGame', { gameId, player: playerColor });
     });
     
     socket.on('disconnect', () => {
@@ -176,7 +193,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       console.log(`Socket reconnected after ${attemptNumber} attempts`);
       
       // Rejoin the game room on reconnection
-      socket.emit('joinGame', { gameId });
+      socket.emit('joinGame', { gameId, player: playerColor });
       
       // Request current game state after reconnection
       socket.emit('requestGameState', { gameId });
@@ -220,7 +237,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     });
     
     // Initially join the game
-    socket.emit('joinGame', { gameId });
+    socket.emit('joinGame', { gameId, player: playerColor });
     
     return () => {
       socket.off('connect');

@@ -7,19 +7,21 @@ const path = require('path');
 const fs = require('fs');
 
 // Environment setup - load env variables if not in production
-if (process.env.NODE_ENV !== 'production') {
-  try {
+try {
+  if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
     console.log('Loaded environment variables from .env file');
-  } catch (error) {
-    console.warn('dotenv module not found, skipping .env loading');
+  } else {
+    console.log('Production environment detected, using environment variables provided by the platform');
   }
+} catch (error) {
+  console.warn('dotenv module not found, skipping .env loading');
 }
 
 // Environment setup
 const dev = process.env.NODE_ENV !== 'production';
-const port = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
+const port = parseInt(process.env.PORT || (isProd ? '8080' : '3000'), 10);
 
 // Detect database type from URL
 const isPostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres');
@@ -319,5 +321,16 @@ app.prepare().then(() => {
   // Start server on the specified port
   server.listen(port, () => {
     console.log(`> Server ready on http://localhost:${port}`);
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use. Trying alternative port.`);
+      const alternatePort = parseInt(process.env.PORT || '0', 10) || 0; // Use any available port
+      server.listen(alternatePort, () => {
+        const actualPort = server.address().port;
+        console.log(`> Server ready on http://localhost:${actualPort}`);
+      });
+    } else {
+      console.error('Server error:', err);
+    }
   });
 }); 

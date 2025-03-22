@@ -25,12 +25,29 @@ git clone <repository-url>
 cd chess-site
 ```
 
-2. Install dependencies:
+2. Use our setup script for automatic configuration:
+```bash
+./setup-dev.sh
+```
+or
+```bash
+npm run setup
+```
+
+This script will:
+- Create a proper `.env` file if it doesn't exist
+- Install dependencies
+- Set up the database
+- Start the development server
+
+Or manually set up with these steps:
+
+3. Install dependencies:
 ```bash
 npm install
 ```
 
-3. Create a `.env` file with these variables:
+4. Create a `.env` file with these variables:
 ```
 DATABASE_URL="file:./prisma/dev.db"
 NEXT_PUBLIC_SOCKET_URL="http://localhost:3000"
@@ -38,18 +55,18 @@ NODE_ENV="development"
 PORT="3000"
 ```
 
-4. Set up the database:
+5. Set up the database:
 ```bash
 npx prisma generate
 npx prisma db push
 ```
 
-5. Start the development server:
+6. Start the development server:
 ```bash
 npm run dev:full
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+7. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Deployment Options
 
@@ -68,6 +85,27 @@ This interactive script will:
 2. Check for required prerequisites
 3. Build the application
 4. Deploy to your chosen platform
+
+### Production Setup
+
+For a quick production setup on your own server:
+
+```bash
+./setup-prod.sh
+```
+or
+```bash
+npm run setup:prod
+```
+
+This script will:
+- Check for required environment variables
+- Install dependencies
+- Set up the database
+- Build the application
+- Start the production server
+
+Make sure to set the `DATABASE_URL` environment variable before running this script.
 
 ### Unified Deployment (Recommended)
 
@@ -167,6 +205,8 @@ For advanced users who want to separate the frontend and backend:
 
 ## Scripts
 
+- `./setup-dev.sh` or `npm run setup` - Automated development environment setup
+- `./setup-prod.sh` or `npm run setup:prod` - Automated production environment setup
 - `npm run dev` - Start the Next.js development server only
 - `npm run server` - Start the Socket.IO server only
 - `npm run dev:full` - Start both servers for local development

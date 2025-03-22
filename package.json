@@ -21,6 +21,8 @@
     "start:unified": "node index.js",
     "test:prod": "npm run build && NODE_ENV=production npm run start:unified",
     "deploy": "node deploy.js",
+    "setup": "./setup-dev.sh",
+    "setup:prod": "./setup-prod.sh",
     "postinstall": "prisma generate"
   },
   "devDependencies": {
